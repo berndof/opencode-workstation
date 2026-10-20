@@ -65,6 +65,14 @@ SBX_REPO="${SBX_REPO:-${DEST_HOME}/Workspace/agent-sandbox}"
 ok()   { printf '[ok]   %s\n' "$*"; }
 skip() { printf '[skip] %s\n' "$*"; }
 warn() { printf '[warn] %s\n' "$*"; }
+# did <msg> — for actions performed through run(): honest under --dry-run
+did() {
+    if [[ "$DRY_RUN" == true ]]; then
+        printf '[dry]  would %s\n' "$*"
+    else
+        printf '[ok]   %s\n' "$*"
+    fi
+}
 
 # run <cmd...> — execute, or just report under --dry-run
 run() {
@@ -84,12 +92,12 @@ link_file() {
             return 0
         fi
         run ln -sfn "$src" "$dest"
-        ok "relinked $dest -> $src"
+        did "relink $dest -> $src"
     elif [[ -e "$dest" ]]; then
         warn "regular file present, NOT overwritten: $dest (move it aside and re-run)"
     else
         run ln -sfn "$src" "$dest"
-        ok "linked $dest -> $src"
+        did "link $dest -> $src"
     fi
 }
 
@@ -106,7 +114,7 @@ copy_file() {
     fi
     run mkdir -p "$(dirname "$dest")"
     run install -m "${mode:-644}" "$src" "$dest"
-    ok "installed $dest"
+    did "install $dest"
 }
 
 echo "==> OpenCode workstation bootstrap"
@@ -172,8 +180,13 @@ UNIT_SRC="${SBX_REPO}/local/systemd/sbx-tunnel@.service"
 if [[ -f "$UNIT_SRC" ]]; then
     copy_file "$UNIT_SRC" "${SYSTEMD_DIR}/sbx-tunnel@.service" 644
     if command -v systemctl >/dev/null 2>&1; then
-        run systemctl --user daemon-reload || warn "daemon-reload failed (no user manager?); unit file is installed"
-        ok "systemctl --user daemon-reload"
+        if [[ "$DRY_RUN" == true ]]; then
+            printf '       $ systemctl --user daemon-reload\n'
+        elif systemctl --user daemon-reload; then
+            ok "systemctl --user daemon-reload"
+        else
+            warn "daemon-reload failed (no user manager?); unit file is installed"
+        fi
     else
         warn "systemctl not available; unit installed but not reloaded"
     fi
