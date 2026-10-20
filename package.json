@@ -1,11 +1,12 @@
 {
-  "name": "opencode-orchestrator",
+  "name": "opencode-workstation",
   "version": "1.0.0",
-  "description": "Orchestrator architecture, specialized multi-agent system, plugins, and remote toolchain for OpenCode",
+  "description": "Replicable OpenCode workstation: multi-agent orchestration, plugin suite, station payload and idempotent bootstrap",
   "main": "plugins/plan-panel/index.ts",
   "scripts": {
     "install:all": "./install.sh --symlink",
-    "install:copy": "./install.sh --copy"
+    "install:copy": "./install.sh --copy",
+    "bootstrap": "./bootstrap.sh"
   },
   "keywords": [
     "opencode",
@@ -13,7 +14,8 @@
     "agents",
     "multi-agent",
     "plan-panel",
-    "remote",
+    "bootstrap",
+    "workstation",
     "plugins"
   ],
   "author": "Bernardo <bernardofb@gmail.com>",

@@ -1,82 +1,302 @@
 {
-  "$schema": "https://opencode.ai/schema.json",
+  "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "omni-remoto": {
-      "type": "local",
-      "command": ["omni-mcp-server"],
-      "enabled": true
-    },
-    "browser": {
-      "type": "local",
-      "command": ["npx", "-y", "@modelcontextprotocol/server-puppeteer"],
-      "enabled": true
-    },
-    "cloudflare": {
-      "type": "local",
-      "command": ["npx", "-y", "@cloudflare/mcp-server-cloudflare"],
-      "environment": {
-        "CLOUDFLARE_API_TOKEN": "${CLOUDFLARE_API_TOKEN}"
+    "servers": {
+      "omni-remoto": {
+        "type": "remote",
+        "url": "https://omniroute.gruposcc.com.br/api/mcp/sse",
+        "headers": {
+          "Authorization": "Bearer ${OMNI_MCP_BEARER}"
+        }
       },
-      "enabled": true
-    },
-    "cloudflare-docs": {
-      "type": "local",
-      "command": ["npx", "-y", "@cloudflare/mcp-server-cloudflare-docs"],
-      "enabled": true
+      "zabbix": {
+        "type": "local",
+        "command": [
+          "/home/bernardo/.local/bin/zabbix-mcp-server",
+          "--config",
+          "/home/bernardo/zabbix-mcp-server/config.toml"
+        ]
+      },
+      "browser": {
+        "type": "local",
+        "command": [
+          "npx",
+          "-y",
+          "@playwright/mcp@latest",
+          "--headless",
+          "--browser",
+          "chrome",
+          "--isolated",
+          "--output-dir",
+          "/home/bernardo/.cache/opencode/playwright-mcp"
+        ],
+        "timeout": {
+          "startup": 60000
+        }
+      },
+      "cloudflare": {
+        "type": "remote",
+        "url": "https://mcp.cloudflare.com/mcp",
+        "headers": {
+          "Authorization": "Bearer ${CLOUDFLARE_API_TOKEN}"
+        },
+        "oauth": false
+      },
+      "cloudflare-docs": {
+        "type": "remote",
+        "url": "https://docs.mcp.cloudflare.com/mcp"
+      },
+      "sbx": {
+        "type": "local",
+        "command": [
+          "python3",
+          "/home/bernardo/Workspace/agent-sandbox/local/mcp/sbx_mcp_server.py",
+          "--port=47110",
+          "--env=dev"
+        ],
+        "environment": {
+          "SBX_ENDPOINT": "http://127.0.0.1:47110"
+        },
+        "enabled": true
+      },
+      "sbx-prod": {
+        "type": "local",
+        "command": [
+          "python3",
+          "/home/bernardo/Workspace/agent-sandbox/local/mcp/sbx_mcp_server.py",
+          "--port=47111",
+          "--env=prod"
+        ],
+        "environment": {
+          "SBX_ENDPOINT": "http://127.0.0.1:47111"
+        },
+        "enabled": true
+      }
     }
   },
-  "permissions": {
-    "ask": ["shell", "edit", "write"],
-    "allow": ["read", "glob", "grep", "memory_*"]
-  },
-  "subagents": {
-    "orchestrator": {
-      "step_limit": 12,
-      "allowed_tools": ["subagent", "memory_*", "opencode", "read", "glob", "grep"]
+  "permissions": [
+    {
+      "action": "mcp",
+      "resource": "sbx_prod:*",
+      "effect": "allow"
     },
-    "architect": {
-      "step_limit": 10,
-      "allowed_tools": ["read", "glob", "grep", "memory_*"]
+    {
+      "action": "mcp",
+      "resource": "sbx-prod:*",
+      "effect": "allow"
     },
-    "worker": {
-      "step_limit": 10,
-      "allowed_tools": ["read", "write", "edit", "shell", "glob", "grep"]
+    {
+      "action": "mcp",
+      "resource": "sbx:*",
+      "effect": "allow"
     },
-    "coder": {
-      "step_limit": 10,
-      "allowed_tools": ["read", "write", "edit", "shell", "glob", "grep"]
+    {
+      "action": "mcp",
+      "resource": "cloudflare-docs:*",
+      "effect": "allow"
     },
-    "tester": {
-      "step_limit": 8,
-      "allowed_tools": ["read", "shell", "glob", "grep"]
+    {
+      "action": "mcp",
+      "resource": "cloudflare:*",
+      "effect": "ask"
     },
-    "reviewer": {
-      "step_limit": 6,
-      "allowed_tools": ["read", "glob", "grep"]
+    {
+      "action": "cloudflare",
+      "resource": "*",
+      "effect": "ask"
     },
-    "debugger": {
-      "step_limit": 8,
-      "allowed_tools": ["read", "edit", "shell", "glob", "grep"]
+    {
+      "action": "external_directory",
+      "resource": "/home/bernardo/.config/opencode/**",
+      "effect": "allow"
     },
-    "documenter": {
-      "step_limit": 6,
-      "allowed_tools": ["read", "write", "edit", "glob", "grep"]
+    {
+      "action": "external_directory",
+      "resource": "/home/bernardo/.local/share/opencode/**",
+      "effect": "allow"
     },
-    "explorer": {
-      "step_limit": 8,
-      "allowed_tools": ["read", "glob", "grep"]
+    {
+      "action": "external_directory",
+      "resource": "/home/bernardo/.cache/opencode/**",
+      "effect": "allow"
     },
-    "librarian": {
-      "step_limit": 6,
-      "allowed_tools": ["memory_*", "read", "glob", "grep"]
+    {
+      "action": "external_directory",
+      "resource": "/home/bernardo/.local/share/pnpm/**",
+      "effect": "allow"
     },
-    "cloudflare": {
-      "step_limit": 8,
-      "allowed_tools": ["cloudflare", "read"]
+    {
+      "action": "external_directory",
+      "resource": "/tmp/*",
+      "effect": "allow"
     },
-    "browser": {
-      "step_limit": 8,
-      "allowed_tools": ["browser", "read"]
+    {
+      "action": "browser_run_code_unsafe",
+      "resource": "*",
+      "effect": "ask"
     }
-  }
+  ],
+  "providers": {
+    "omni": {
+      "name": "OmniRoute",
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "https://omniroute.gruposcc.com.br/api/v1",
+        "apiKey": "{env:OMNIROUTE_API_KEY}"
+      },
+      "models": {
+        "gpt-oss-120b": {
+          "id": "gpt-oss-120b",
+          "modelID": "groq/openai/gpt-oss-120b",
+          "name": "GPT-OSS 120B · groq (coding default)",
+          "family": "gpt-oss",
+          "limit": {
+            "context": 131072,
+            "output": 65536
+          }
+        },
+        "gpt-oss-20b": {
+          "id": "gpt-oss-20b",
+          "modelID": "groq/openai/gpt-oss-20b",
+          "name": "GPT-OSS 20B · groq (fast)",
+          "family": "gpt-oss",
+          "limit": {
+            "context": 131072,
+            "output": 65536
+          }
+        },
+        "qwen3.8-27b": {
+          "id": "qwen3.8-27b",
+          "modelID": "groq/qwen/qwen3.8-27b",
+          "name": "Qwen3.8 27B · groq (fast)",
+          "family": "qwen",
+          "limit": {
+            "context": 131072,
+            "output": 16384
+          }
+        },
+        "deepseek-chat": {
+          "id": "deepseek-chat",
+          "modelID": "ds-web/deepseek-chat",
+          "name": "DeepSeek Chat · ds-web",
+          "family": "deepseek",
+          "limit": {
+            "context": 128000,
+            "output": 32768
+          }
+        },
+        "deepseek-reasoner": {
+          "id": "deepseek-reasoner",
+          "modelID": "ds-web/deepseek-reasoner",
+          "name": "DeepSeek Reasoner · ds-web (deep fallback)",
+          "family": "deepseek",
+          "limit": {
+            "context": 128000,
+            "output": 32768
+          }
+        },
+        "nemotron-ultra": {
+          "id": "nemotron-ultra",
+          "modelID": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+          "name": "Nemotron 3 Ultra 550B · nvidia (deep)",
+          "family": "nemotron",
+          "limit": {
+            "context": 1000000,
+            "output": 65536
+          }
+        },
+        "nemotron-lightning": {
+          "id": "nemotron-lightning",
+          "modelID": "nvidia/nvidia/nemotron-3.5-lightning-30b-a3b",
+          "name": "Nemotron 3.5 Lightning · nvidia (fast)",
+          "family": "nemotron",
+          "limit": {
+            "context": 262144,
+            "output": 32768
+          }
+        },
+        "qwen3.8-27b-exl3": {
+          "id": "qwen3.8-27b-exl3",
+          "modelID": "unc/turboderp/Qwen3.8-27B-exl3",
+          "name": "Qwen3.8 27B · unc",
+          "family": "qwen",
+          "limit": {
+            "context": 131072,
+            "output": 16384
+          }
+        },
+        "laguna-s": {
+          "id": "laguna-s",
+          "modelID": "openrouter/poolside/laguna-s-2.1:free",
+          "name": "Laguna S 2.1 · openrouter free",
+          "family": "laguna",
+          "limit": {
+            "context": 262144,
+            "output": 32768
+          }
+        },
+        "combo-gratis": {
+          "id": "combo-gratis",
+          "modelID": "combo-gratis",
+          "name": "combo-gratis · OmniRoute",
+          "family": "combo",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "combo-normal": {
+          "id": "combo-normal",
+          "modelID": "combo-normal",
+          "name": "combo-normal · OmniRoute",
+          "family": "combo",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "combo-pro": {
+          "id": "combo-pro",
+          "modelID": "combo-pro",
+          "name": "combo-pro · OmniRoute",
+          "family": "combo",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "combo-coding": {
+          "id": "combo-coding",
+          "modelID": "combo-coding",
+          "name": "combo-coding · OmniRoute",
+          "family": "combo",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "combo-rapido": {
+          "id": "combo-rapido",
+          "modelID": "combo-rapido",
+          "name": "combo-rapido · OmniRoute",
+          "family": "combo",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        }
+      }
+    }
+  },
+  "tools": {
+    "browser*": false,
+    "cloudflare*": false,
+    "cloudflare-docs*": false,
+    "omni-remoto*": false,
+    "zabbix*": false
+  },
+  "plugins": [
+    "opencode-agent-memory"
+  ],
+  "model": "omni/deepseek-chat"
 }

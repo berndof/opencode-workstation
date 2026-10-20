@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+# sbx-prod-on — sobe o túnel do sandbox de PRODUÇÃO (portal-prod) com TTL automático.
+#
+# Uso:
+#   sbx-prod-on                 # sobe com TTL padrão (120m)
+#   sbx-prod-on --ttl 90m       # TTL customizado (aceita 45s, 90m, 2h)
+#   sbx-prod-on --status        # mostra estado e tempo restante
+#   sbx-prod-on --stop          # derruba agora
+#   sbx-prod-on --extend 60m    # reinicia o contador a partir de agora
+#
+# O túnel morre sozinho no fim do TTL (o ssh roda sob `timeout`), sem depender de
+# systemd. A passphrase da chave é pedida UMA vez por login (ssh-agent).
+set -euo pipefail
+
+HOST="portal-prod"
+LOCAL_PORT="47111"
+KEY="$HOME/.ssh/id_ed25519bernardosenha"
+DEFAULT_TTL="120m"
+RUNTIME="${XDG_RUNTIME_DIR:-/tmp}/sbx-prod-tunnel"
+PID_FILE="$RUNTIME/tunnel.pid"
+META_FILE="$RUNTIME/tunnel.meta"
+LOG_FILE="$RUNTIME/tunnel.log"
+
+die() { printf 'sbx-prod-on: %s\n' "$*" >&2; exit 1; }
+
+parse_duration() { # 90m|45s|2h|120 -> segundos
+  local v="${1// /}"
+  case "$v" in
+    *h) echo $(( ${v%h} * 3600 )) ;;
+    *m) echo $(( ${v%m} * 60 )) ;;
+    *s) echo "${v%s}" ;;
+    ''|*[!0-9]*) die "duração inválida: '$1' (use 45s, 90m, 2h)" ;;
+    *) echo "$v" ;;
+  esac
+}
+
+fmt_dur() { # segundos -> 1h32m
+  local s="$1" out=""
+  (( s >= 3600 )) && { out+="$(( s / 3600 ))h"; s=$(( s % 3600 )); }
+  (( s >= 60 ))   && { out+="$(( s / 60 ))m";   s=$(( s % 60 )); }
+  (( s > 0 ))     && out+="${s}s"
+  echo "${out:-0s}"
+}
+
+is_up() { [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE" 2>/dev/null)" 2>/dev/null; }
+
+health() { curl -fsS --max-time 3 "http://127.0.0.1:${LOCAL_PORT}/v1/health" 2>/dev/null; }
+
+remaining() {
+  [[ -f "$META_FILE" ]] || { echo 0; return; }
+  local start ttl
+  read -r start ttl < "$META_FILE"
+  local left=$(( start + ttl - $(date +%s) ))
+  (( left < 0 )) && left=0
+  echo "$left"
+}
+
+show_status() {
+  if is_up; then
+    local left; left="$(remaining)"
+    if [[ "$left" -gt 0 ]]; then
+      echo "Túnel portal-prod: ATIVO (pid $(cat "$PID_FILE")) · restam $(fmt_dur "$left")"
+      health >/dev/null && echo "  daemon: respondendo em 127.0.0.1:${LOCAL_PORT}" \
+                        || echo "  daemon: túnel aberto, mas sem resposta em 127.0.0.1:${LOCAL_PORT}"
+    else
+      echo "Túnel portal-prod: EXPIRADO (pid $(cat "$PID_FILE")) — rode 'sbx-prod-on' para subir de novo"
+    fi
+  else
+    echo "Túnel portal-prod: INATIVO"
+  fi
+}
+
+ensure_key_in_agent() {
+  local want have
+  want="$(ssh-keygen -lf "$KEY" 2>/dev/null | awk '{print $2}')" || die "não consegui ler a chave $KEY"
+  have="$(ssh-add -l 2>/dev/null || true)"
+  grep -qF "$want" <<<"$have" && return 0
+  [[ -t 0 ]] || die "chave não está no ssh-agent e não há TTY para pedir a passphrase. Rode: ssh-add $KEY"
+  echo "Carregando a chave no ssh-agent (passphrase pedida 1× por login)..."
+  ssh-add "$KEY"
+}
+
+start_tunnel() {
+  local secs="$1"
+  mkdir -p "$RUNTIME"; chmod 700 "$RUNTIME"
+  is_up && { echo "Já existe túnel ativo."; show_status; return 0; }
+
+  ensure_key_in_agent
+
+  local uid
+  uid="$(ssh -o BatchMode=yes -o ConnectTimeout=10 "$HOST" 'id -u' 2>/dev/null || true)"
+  [[ "$uid" =~ ^[0-9]+$ ]] || die "SSH para $HOST falhou (agente vazio, chave não autorizada ou host fora do ar)"
+
+  ssh -o BatchMode=yes -o ConnectTimeout=10 "$HOST" \
+    'systemctl --user start sbx-daemon.service 2>/dev/null || nohup ~/.local/share/agent-sandbox/remote/sbx-daemon.py >/tmp/sbx-daemon.log 2>&1 &' >/dev/null 2>&1 || true
+
+  nohup timeout "$secs" ssh -N \
+    -o BatchMode=yes -o ExitOnForwardFailure=yes -o ConnectTimeout=10 \
+    -o ControlMaster=no -o ControlPath=none \
+    -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
+    -L "127.0.0.1:${LOCAL_PORT}:/run/user/${uid}/sbx/daemon.sock" \
+    "$HOST" >>"$LOG_FILE" 2>&1 &
+  echo $! >"$PID_FILE"
+  echo "$(date +%s) $secs" >"$META_FILE"
+
+  sleep 2
+  if is_up; then
+    health >/dev/null \
+      && echo "Túnel portal-prod ATIVO em 127.0.0.1:${LOCAL_PORT} · expira em $(fmt_dur "$secs") (daemon OK)" \
+      || echo "Túnel abrindo… se persistir, veja $LOG_FILE"
+  else
+    echo "Falhou ao subir. Log:"; tail -n 15 "$LOG_FILE" 2>/dev/null
+    return 1
+  fi
+}
+
+stop_tunnel() {
+  if is_up; then
+    kill "$(cat "$PID_FILE")" 2>/dev/null || true
+    rm -f "$PID_FILE" "$META_FILE"
+    echo "Túnel portal-prod derrubado."
+  else
+    rm -f "$PID_FILE" "$META_FILE"
+    echo "Nenhum túnel ativo."
+  fi
+}
+
+ACTION="start"; TTL="$DEFAULT_TTL"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --ttl)    ACTION="start"; [[ $# -ge 2 ]] || die "--ttl exige um valor"; TTL="$2"; shift 2 ;;
+    --ttl=*)  ACTION="start"; TTL="${1#*=}"; shift ;;
+    --extend) ACTION="extend"; [[ $# -ge 2 ]] || TTL="$DEFAULT_TTL"; [[ $# -ge 2 ]] && { TTL="$2"; shift; } ; shift ;;
+    --extend=*) ACTION="extend"; TTL="${1#*=}"; shift ;;
+    --status) ACTION="status"; shift ;;
+    --stop)   ACTION="stop"; shift ;;
+    -h|--help) helm_end=$(( $(grep -n '^set -euo' "$0" | cut -d: -f1) - 1 )); sed -n "2,${helm_end}p" "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) die "argumento desconhecido: $1 (use --help)" ;;
+  esac
+done
+
+case "$ACTION" in
+  status) show_status ;;
+  stop)   stop_tunnel ;;
+  extend) SECS="$(parse_duration "$TTL")"; [[ -n "$SECS" ]] || exit 1; stop_tunnel >/dev/null; start_tunnel "$SECS" ;;
+  start)  SECS="$(parse_duration "$TTL")"; [[ -n "$SECS" ]] || exit 1; start_tunnel "$SECS" ;;
+esac

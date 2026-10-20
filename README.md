@@ -1,8 +1,9 @@
-# OpenCode Orchestrator Suite
+# OpenCode Workstation
 
-Production-grade multi-agent orchestration ecosystem and plugin suite for **OpenCode** featuring a
-mandatory recon -> design -> implement -> verify sequence, an opt-in TUI plan panel, strict MCP tool
-isolation, and a 2-level hierarchical memory model.
+Production-grade multi-agent workstation for **OpenCode**: an orchestration ecosystem and plugin
+suite with a mandatory recon -> design -> implement -> verify sequence, an opt-in TUI plan panel,
+strict MCP tool isolation, a 2-level hierarchical memory model, and an idempotent `bootstrap.sh`
+that turns any machine into a replica of this station.
 
 ---
 
@@ -42,7 +43,7 @@ graph TD
         Orch -->|Web & SPA| Browser[Browser]
         Orch -->|DNS / WAF / TLS| CF[Cloudflare]
         Orch -->|Zabbix & metrics| ZBX[Zabbix]
-        Orch -->|Remote tunnel & SSHFS| Remote[OpenCode Remote CLI / Plugin]
+        Orch -->|Dev/prod sandbox access| SBX[agent-sandbox MCP]
     end
 
     subgraph Security
@@ -139,15 +140,7 @@ denied at the tool layer: scanners and test runs are the primary's job, executed
 - Interactive SolidJS TUI panel embedded directly in OpenCode.
 - Keybinding: `Ctrl+G` to toggle viewer, or slash command `/plans` (`/plan`, `/plano`).
 
-### 6. OpenCode Remote Integration ([`berndof/opencode-remote`](https://github.com/berndof/opencode-remote))
-- Maintained as a standalone package & repository: [`https://github.com/berndof/opencode-remote`](https://github.com/berndof/opencode-remote).
-- CLI command `opencode-remote` (and aliases `ocd`, `oc-remote`), `/remote` TUI plugin, and agent skill.
-- Install standalone via:
-  ```bash
-  curl -fsSL https://raw.githubusercontent.com/berndof/opencode-remote/main/install.sh | bash
-  ```
-
-### 7. Strict MCP Tool Isolation & Memory Hierarchy
+### 6. Strict MCP Tool Isolation & Memory Hierarchy
 - High-overhead tool schemas (e.g. Cloudflare, Browser Puppeteer) are scoped strictly to specialist subagents.
 - Memory: Level 1 (Committed code on disk) > Level 2 (Project memory / `.opencode/memory/`) > Level 3 (Global memory).
 
@@ -157,20 +150,38 @@ denied at the tool layer: scanners and test runs are the primary's job, executed
 
 - **Node.js:** `>= 18.0.0`
 - **OpenCode:** `>= 0.2.0`
+- **Remote host access:** all remote agent work goes through the
+  [agent-sandbox](https://github.com/berndof/agent-sandbox) MCP servers — dev (write) on
+  `127.0.0.1:47110`, prod (read-only) on `127.0.0.1:47111`. No `ssh`, `scp`, `rsync` or `sshfs`
+  invocations from agents; the prod tunnel is raised on demand with `sbx-prod-on` (auto-expiring TTL).
 
 ---
 
 ## 🛠️ Installation & Setup
 
-### Automated Installation (Recommended)
-
-Run the colorized installer to deploy agents, memories, and optional plugins:
+### One-shot station bootstrap (Recommended)
 
 ```bash
 # Clone the repository
-git clone https://github.com/berndof/opencode-orchestrator.git
-cd opencode-orchestrator
+git clone https://github.com/berndof/opencode-workstation.git
+cd opencode-workstation
 
+# Provision this HOME: agent/memory/command symlinks, global AGENTS.md, CLI helpers,
+# desktop launcher, a starter opencode.json and the agent-sandbox sbx-tunnel unit.
+./bootstrap.sh
+
+# Inspect first, or test against a throwaway HOME:
+./bootstrap.sh --dry-run
+./bootstrap.sh --dry-run --home /tmp/fakehome
+```
+
+`bootstrap.sh` is idempotent: it never clobbers a regular file it did not create, keeps an existing
+`opencode.json`, and only warns when the sandbox repo or dev daemon is absent. Afterwards, fill in
+`~/.config/opencode/.secrets.env` (chmod 600) — see `workstation/.secrets.env.example` for the names.
+
+### Colorized installer (agents, memory, plugins, commands)
+
+```bash
 # Symlink mode (recommended for live editing and dev updates)
 ./install.sh --symlink
 
@@ -188,14 +199,23 @@ cd opencode-orchestrator
 
 1. **Agents:** Copy/symlink `agents/*.md` to `~/.config/opencode/agents/`
 2. **Memory:** Copy/symlink `memory/*.md` to `~/.config/opencode/memory/`
-3. **Plugins (opt-in):** Copy/symlink `plugins/plan-panel` to `~/.config/opencode/plugins/plan-panel`
+3. **Plugins:** Copy/symlink `plugins/*` to `~/.config/opencode/plugins/`
+4. **Commands:** Copy/symlink `commands/*.md` to `~/.config/opencode/commands/`
+5. **Station payload:** copy `workstation/AGENTS.md` to `~/.config/opencode/AGENTS.md`,
+   `workstation/bin/*` to `~/.local/bin/` (chmod 700) and
+   `workstation/desktop/*.desktop` to `~/.local/share/applications/`
+6. **Config:** copy `templates/opencode.json.example` to `~/.config/opencode/opencode.json`
+   (chmod 600) and create the sibling `.secrets.env` from `workstation/.secrets.env.example`
+7. **Prod tunnel:** `sbx-prod-on` raises the read-only prod tunnel with an auto-expiring TTL
+   (`--ttl 90m`, `--status`, `--stop`, `--extend`); the `sbx-tunnel@.service` unit lives in the
+   `agent-sandbox` repository — do not duplicate it here.
 
 ---
 
 ## 📂 Repository Structure
 
 ```
-opencode-orchestrator/
+opencode-workstation/
 ├── agents/                  # Specialized agent prompt definitions
 │   ├── orchestrator.md      # Controller / Main Orchestrator agent
 │   ├── architect.md         # Solution design & Mermaid diagrams
@@ -214,23 +234,29 @@ opencode-orchestrator/
 │   ├── sec-audit.md         # Static security audit subagent (read-only)
 │   ├── sec-pentest.md       # Safe exploitation validation subagent (read-only)
 │   └── sec-fix.md           # Security remediation subagent (least-privilege)
+├── commands/                # Slash commands
+│   └── analytics.md         # Orchestrator analytics report
 ├── plugins/                 # OpenCode V2 TUI Plugins (SolidJS)
 │   └── plan-panel/          # Active plan artifact visualizer (Ctrl+G, /plans) — opt-in install
 │       ├── index.ts
 │       └── tui.tsx
-├── commands/                # Slash command definitions
-│   └── analytics.md         # Orchestrator analytics command
 ├── memory/                  # Hierarchical memory blocks
 │   ├── persona.md           # Persona & memory guidelines
 │   ├── human.md             # Collaboration & interaction preferences
 │   ├── global-file-search-rules.md # File search rules
 │   └── templates/           # Memory templates
 │       └── project.md.template
+├── workstation/             # Station payload (installed by bootstrap.sh)
+│   ├── AGENTS.md            # Global session rule (sandbox access, models, secrets)
+│   ├── .secrets.env.example # Secret variable names only — no values
+│   ├── bin/                 # sbx-prod-on (prod tunnel TTL), opencode-desktop (web app launcher)
+│   └── desktop/             # opencode-desktop.desktop menu entry
 ├── templates/               # Workspace configuration examples
 │   └── opencode.json.example
+├── bootstrap.sh             # Idempotent station provisioner (--home, --dry-run)
+├── install.sh               # Colorized installer with symlink & backup support
 ├── package.json             # NPM dependencies & plugin types
 ├── tsconfig.json            # TypeScript & SolidJS JSX config
-├── install.sh               # Colorized installer with symlink & backup support
 ├── LICENSE                  # MIT License
 └── README.md                # Documentation & Architecture Overview
 ```

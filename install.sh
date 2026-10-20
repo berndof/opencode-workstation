@@ -19,7 +19,7 @@ print_header() {
  ██║   ██║██╔═══╝ ██╔══╝  ██║╚██╗██║██║   ██║╚════██║
  ╚██████╔╝██║     ███████╗██║ ╚████║╚██████╔╝███████║
   ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝
-      OpenCode Orchestrator Suite Installer
+      OpenCode Workstation Suite Installer
 EOF
     echo -e "${CYAN}======================================================${NC}"
 }
@@ -172,4 +172,6 @@ echo -e "Agents:   ${CYAN}${TARGET_DIR}/agents${NC}"
 echo -e "Memory:   ${CYAN}${TARGET_DIR}/memory${NC}"
 echo -e "Plugins:  ${CYAN}${TARGET_DIR}/plugins${NC}"
 echo -e "Commands: ${CYAN}${COMMANDS_DIR}${NC}"
-echo -e "Remote:   ${CYAN}Standalone repo -> https://github.com/berndof/opencode-remote${NC}"
+echo ""
+echo -e "${YELLOW}Tip:${NC} run ${CYAN}./bootstrap.sh${NC} for the full station setup (AGENTS.md, CLI helpers,"
+echo -e "     desktop launcher, opencode.json, sbx-tunnel unit)."

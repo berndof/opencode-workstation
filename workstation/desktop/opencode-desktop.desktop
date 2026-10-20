@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=OpenCode Desktop
+GenericName=AI Coding Agent
+Comment=App web do OpenCode v2 (mesmas sessões do TUI)
+Exec=/home/bernardo/.local/bin/opencode-desktop
+Icon=utilities-terminal
+Terminal=false
+Categories=Development;IDE;
+Keywords=opencode;agent;ai;
+StartupWMClass=OpenCode

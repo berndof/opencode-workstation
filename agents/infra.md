@@ -29,7 +29,11 @@ You are the Infrastructure & Container specialist. You manage Dockerfiles, Docke
    - Max 2 build retry attempts; if failure persists, diagnose logs and report `STATUS: FAILED`.
 
 4. **Integration with Remote Hosts:**
-   - Use `opencode-remote` (via `ocd` or SSH) when targeting remote environments or deploying to remote nodes.
+   - Remote hosts are reached **only** through the agent-sandbox: MCP `sbx` (portal-dev, read-write) and `sbx-prod`
+     (portal-prod, EROFS read-only), or the `sbx` / `sbx-prod` CLIs. Deploy targets and diagnostics live in the
+     sandbox Makefile/broker, not in ad-hoc shell.
+   - Never invoke `ssh`, `scp`, `rsync` or `ocd` for agent work: `opencode-remote` was decommissioned on 2026-10-20
+     (binaries and skill parked in `~/.config/opencode/.backup_opencode_remote/`).
 
 ## Execution Flow
 1. **Analyze Requirements:** Review services, environment variables, networking, port bindings, and storage needs.

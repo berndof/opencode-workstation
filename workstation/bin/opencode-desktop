@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# opencode-desktop — abre o app web do OpenCode v2 (mesmo servidor e mesmas sessões do TUI).
+#
+#   opencode-desktop            # abre em janela app-mode do Chrome
+#   opencode-desktop --print    # só imprime a URL atual (diagnóstico)
+#
+# Não sobe servidor: usa o background service do opencode (opencode service status).
+set -euo pipefail
+
+URL="$(opencode service status 2>/dev/null | head -1 | tr -d '[:space:]')"
+if [[ "$URL" != http* ]]; then
+  URL="http://127.0.0.1:4096"
+fi
+
+if [[ "${1:-}" == "--print" ]]; then
+  echo "$URL"
+  exit 0
+fi
+
+if curl -fsS --max-time 3 -o /dev/null "$URL" 2>/dev/null; then
+  :
+else
+  echo "Servidor do OpenCode não respondeu em $URL" >&2
+  echo "Rode 'opencode service start' (ou abra o TUI uma vez) e tente de novo." >&2
+  exit 1
+fi
+
+if command -v google-chrome >/dev/null; then
+  exec google-chrome --app="$URL" --class=OpenCode
+elif command -v firefox >/dev/null; then
+  exec firefox --new-window "$URL"
+else
+  exec xdg-open "$URL"
+fi
