@@ -99,7 +99,7 @@ echo -e "${BLUE}Force overwrite:${NC}         ${FORCE}"
 echo -e "${BLUE}Plan panel plugin:${NC}       ${WITH_PLAN_PANEL} (opt-in via --with-plan-panel)"
 echo ""
 
-mkdir -p "${TARGET_DIR}/agents" "${TARGET_DIR}/memory" "${TARGET_DIR}/plugins" "${BIN_DIR}" "${COMMANDS_DIR}"
+mkdir -p "${TARGET_DIR}/agents" "${TARGET_DIR}/memory" "${TARGET_DIR}/skills" "${TARGET_DIR}/plugins" "${BIN_DIR}" "${COMMANDS_DIR}"
 
 install_item() {
     local src="$1"
@@ -141,7 +141,19 @@ for mem in "${SCRIPT_DIR}/memory/"*.md; do
 done
 
 echo ""
-echo -e "${BOLD}${MAGENTA}3. Installing Plugins (Plan Panel is opt-in)...${NC}"
+echo -e "${BOLD}${MAGENTA}3. Installing Agent Skills...${NC}"
+if [[ -d "${SCRIPT_DIR}/skills" ]]; then
+    for skill in "${SCRIPT_DIR}/skills/"*/; do
+        if [[ -f "${skill}SKILL.md" ]]; then
+            sname=$(basename "$skill")
+            mkdir -p "${TARGET_DIR}/skills/${sname}"
+            install_item "${skill}SKILL.md" "${TARGET_DIR}/skills/${sname}/SKILL.md"
+        fi
+    done
+fi
+
+echo ""
+echo -e "${BOLD}${MAGENTA}4. Installing Plugins (Plan Panel is opt-in)...${NC}"
 if [[ -d "${SCRIPT_DIR}/plugins" ]]; then
     for plugin in "${SCRIPT_DIR}/plugins/"*; do
         if [[ -d "$plugin" ]]; then
@@ -156,7 +168,7 @@ if [[ -d "${SCRIPT_DIR}/plugins" ]]; then
 fi
 
 echo ""
-echo -e "${BOLD}${MAGENTA}4. Installing Slash Commands...${NC}"
+echo -e "${BOLD}${MAGENTA}5. Installing Slash Commands...${NC}"
 if [[ -d "${SCRIPT_DIR}/commands" ]]; then
     for cmd in "${SCRIPT_DIR}/commands/"*.md; do
         if [[ -f "$cmd" ]]; then
@@ -170,6 +182,7 @@ echo ""
 echo -e "${GREEN}${BOLD}Installation complete!${NC}"
 echo -e "Agents:   ${CYAN}${TARGET_DIR}/agents${NC}"
 echo -e "Memory:   ${CYAN}${TARGET_DIR}/memory${NC}"
+echo -e "Skills:   ${CYAN}${TARGET_DIR}/skills${NC}"
 echo -e "Plugins:  ${CYAN}${TARGET_DIR}/plugins${NC}"
 echo -e "Commands: ${CYAN}${COMMANDS_DIR}${NC}"
 echo ""
