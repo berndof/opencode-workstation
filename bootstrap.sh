@@ -140,7 +140,7 @@ fi
 echo
 
 echo "2. Config directories and repo symlinks"
-run mkdir -p "${OPENCODE_DIR}/agents" "${OPENCODE_DIR}/memory" "${OPENCODE_DIR}/commands"
+run mkdir -p "${OPENCODE_DIR}/agents" "${OPENCODE_DIR}/memory" "${OPENCODE_DIR}/commands" "${OPENCODE_DIR}/skills"
 for sub in agents memory commands; do
     shopt -s nullglob
     for src in "${REPO_DIR}/${sub}/"*.md; do
@@ -148,6 +148,13 @@ for sub in agents memory commands; do
     done
     shopt -u nullglob
 done
+shopt -s nullglob
+for skill_src in "${REPO_DIR}/skills/"*/SKILL.md; do
+    skill_name="$(basename "$(dirname "$skill_src")")"
+    run mkdir -p "${OPENCODE_DIR}/skills/${skill_name}"
+    link_file "$skill_src" "${OPENCODE_DIR}/skills/${skill_name}/SKILL.md"
+done
+shopt -u nullglob
 echo
 
 echo "3. Global AGENTS.md session rule"

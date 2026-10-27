@@ -10,3 +10,4 @@ read_only: false
 - Deny heavy MCP servers (`browser`, `cloudflare`, `omni-remoto`) by default in agent `tools:` blocks; grant only to the specialist that needs them.
 - Cost routing: one tool call -> do it yourself; surgical closed spec -> `@coder`/`@worker`; broad or multi-file -> handle in primary mode; max 3 subagents concurrently.
 - Never hardcode plan paths, frontmatter, or status values in agent prompts: plans follow whatever convention is active at runtime.
+- Tool output style (2026-10-23): user wants data viewers, not AI lecturing. Advisory/warning messages must be grounded in concrete evidence found (ids, IPs, accounts, timestamps); keep advice to one line max. Prefers tail/follow modes for monitoring (e.g. `make redacao-watch`).
